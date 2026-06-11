@@ -46,6 +46,18 @@ export class SyncService {
     try {
       await client.query('BEGIN');
 
+      // Ensure the device is registered to avoid foreign key violations
+      const deviceLabel = `Device ${request.deviceId.slice(0, 8)}`;
+      await client.query(
+        `
+          insert into devices (id, student_id, label, last_seen_at)
+          values ($1::uuid, $2::uuid, $3, now())
+          on conflict (id) do update set
+            last_seen_at = now()
+        `,
+        [request.deviceId, request.studentId, deviceLabel]
+      );
+
       // 1. Process Operations one by one
       for (const op of request.operations) {
         try {
@@ -177,7 +189,16 @@ export class SyncService {
       const p = op.payload as any;
       const targetMins = Number(p.targetMinutes);
       const actualMins = Number(p.actualMinutes ?? 0);
-      const status = p.status as string;
+      let status = p.status as string;
+      if (!status) {
+        if (op.operationType === 'SESSION_STARTED') {
+          status = 'started';
+        } else if (op.operationType === 'SESSION_COMPLETED') {
+          status = 'succeeded';
+        } else if (op.operationType === 'SESSION_FAILED') {
+          status = 'failed';
+        }
+      }
       const failReason = p.failReason as string | null;
       const startedAtClient = p.startedAtClient as string;
       const completedAtClient = p.completedAtClient as string | null;
@@ -186,7 +207,7 @@ export class SyncService {
       // Conflict Check: First valid terminal status wins. Stale updates cannot overwrite terminal states.
       let shouldApplySession = false;
       const existingSessionRes = await client.query(
-        'select status, lamport from focus_sessions where id = $1',
+        'select status, lamport from focus_sessions where id = $1::uuid',
         [op.entityId]
       );
       const existingSession = existingSessionRes.rows[0];
@@ -209,7 +230,7 @@ export class SyncService {
               id, student_id, device_id, target_minutes, actual_minutes, 
               status, fail_reason, focus_date, started_at_client, completed_at_client, lamport, created_at, updated_at
             )
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now(), now())
+            values ($1::uuid, $2::uuid, $3::uuid, $4::integer, $5::integer, $6::text, $7::text, $8::date, $9::timestamptz, $10::timestamptz, $11::integer, now(), now())
             on conflict (id) do update set
               actual_minutes = excluded.actual_minutes,
               status = excluded.status,
@@ -225,25 +246,32 @@ export class SyncService {
         );
 
         // Record in Change Feed
+        const focusChangeData = {
+          id: op.entityId,
+          student_id: op.studentId,
+          device_id: op.deviceId,
+          target_minutes: targetMins,
+          actual_minutes: actualMins,
+          status,
+          fail_reason: failReason,
+          focus_date: focusDate,
+          started_at_client: startedAtClient,
+          completed_at_client: completedAtClient,
+          lamport: op.lamport,
+          updated_at: timestamp
+        };
         await client.query(
           `
             insert into server_changes (student_id, entity_type, entity_id, change_type, data)
-            values ($1, 'focus_session', $2, 'upsert', json_build_object(
-              'id', $2, 'student_id', $1, 'device_id', $3, 'target_minutes', $4, 
-              'actual_minutes', $5, 'status', $6, 'fail_reason', $7, 'focus_date', $8, 
-              'started_at_client', $9, 'completed_at_client', $10, 'lamport', $11, 'updated_at', now()
-            ))
+            values ($1::uuid, 'focus_session', $2::uuid, 'upsert', $3::jsonb)
           `,
-          [
-            op.studentId, op.entityId, op.deviceId, targetMins, actualMins,
-            status, failReason, focusDate, startedAtClient, completedAtClient, op.lamport
-          ]
+          [op.studentId, op.entityId, JSON.stringify(focusChangeData)]
         );
 
         // 2. Award rewards if Succeeded & not yet rewarded (Idempotency)
         if (status === 'succeeded') {
           const checkReward = await client.query(
-            'select session_id from processed_sessions where session_id = $1',
+            'select session_id from processed_sessions where session_id = $1::uuid',
             [op.entityId]
           );
 
@@ -251,7 +279,7 @@ export class SyncService {
             const coinsAwarded = 50;
 
             const studentRes = await client.query(
-              'select coins, current_streak, last_focus_date from students where id = $1',
+              'select coins, current_streak, last_focus_date from students where id = $1::uuid',
               [op.studentId]
             );
             const student = studentRes.rows[0];
@@ -281,21 +309,21 @@ export class SyncService {
             await client.query(
               `
                 insert into reward_events (id, student_id, session_id, focus_date, coins_awarded, minutes_awarded, streak_after, created_at)
-                values ($1, $2, $3, $4, $5, $6, $7, now())
+                values ($1::uuid, $2::uuid, $3::uuid, $4::date, $5::integer, $6::integer, $7::integer, now())
               `,
               [rewardEventId, op.studentId, op.entityId, focusDate, coinsAwarded, actualMins, newStreak]
             );
 
             await client.query(
-              'insert into processed_sessions (session_id, student_id, processed_at) values ($1, $2, now())',
+              'insert into processed_sessions (session_id, student_id, processed_at) values ($1::uuid, $2::uuid, now())',
               [op.entityId, op.studentId]
             );
 
             await client.query(
               `
                 update students 
-                set coins = coins + $2, current_streak = $3, last_focus_date = $4, updated_at = now() 
-                where id = $1
+                set coins = coins + $2::integer, current_streak = $3::integer, last_focus_date = $4::date, updated_at = now() 
+                where id = $1::uuid
               `,
               [op.studentId, coinsAwarded, newStreak, focusDate]
             );
@@ -303,7 +331,7 @@ export class SyncService {
             await client.query(
               `
                 insert into daily_focus_totals (student_id, focus_date, total_minutes, successful_session_count)
-                values ($1, $2, $3, 1)
+                values ($1::uuid, $2::date, $3::integer, 1)
                 on conflict (student_id, focus_date) do update set
                   total_minutes = daily_focus_totals.total_minutes + excluded.total_minutes,
                   successful_session_count = daily_focus_totals.successful_session_count + 1
@@ -312,21 +340,24 @@ export class SyncService {
             );
 
             const updatedStudentRes = await client.query(
-              'select * from students where id = $1',
+              'select * from students where id = $1::uuid',
               [op.studentId]
             );
             const updatedStudent = updatedStudentRes.rows[0];
+            const studentChangeData = {
+              id: op.studentId,
+              name: updatedStudent.name,
+              coins: updatedStudent.coins,
+              current_streak: updatedStudent.current_streak,
+              last_focus_date: updatedStudent.last_focus_date,
+              updated_at: timestamp
+            };
             await client.query(
               `
                 insert into server_changes (student_id, entity_type, entity_id, change_type, data)
-                values ($1, 'student', $1, 'upsert', json_build_object(
-                  'id', $1, 'name', $2, 'coins', $3, 'current_streak', $4, 'last_focus_date', $5, 'updated_at', now()
-                ))
+                values ($1::uuid, 'student', $1::uuid, 'upsert', $2::jsonb)
               `,
-              [
-                op.studentId, updatedStudent.name, updatedStudent.coins, 
-                updatedStudent.current_streak, updatedStudent.last_focus_date
-              ]
+              [op.studentId, JSON.stringify(studentChangeData)]
             );
 
             const dedupeKey = `focus_session_success:${op.entityId}`;
@@ -345,7 +376,7 @@ export class SyncService {
                 insert into processed_events (
                   student_id, event_type, dedupe_key, source_entity_type, source_entity_id, status, payload, created_at
                 )
-                values ($1, 'focus_session_success', $2, 'focus_session', $3, 'pending', $4::jsonb, now())
+                values ($1::uuid, 'focus_session_success', $2::text, 'focus_session', $3::uuid, 'pending', $4::jsonb, now())
                 on conflict (dedupe_key) do nothing
               `,
               [op.studentId, dedupeKey, op.entityId, JSON.stringify(eventPayload)]
@@ -357,7 +388,7 @@ export class SyncService {
       } else {
         // Acknowledge operation but flag apply_status as ignored (lost conflict)
         await client.query(
-          "update operations set apply_status = 'ignored' where id = $1",
+          "update operations set apply_status = 'ignored' where id = $1::uuid",
           [op.id]
         );
       }
@@ -370,7 +401,7 @@ export class SyncService {
 
       // 1. Fetch current task state
       const existingTaskRes = await client.query(
-        'select lamport, updated_by_device_id, deleted_at from tasks where id = $1',
+        'select lamport, updated_by_device_id, deleted_at from tasks where id = $1::uuid',
         [op.entityId]
       );
       const existingTask = existingTaskRes.rows[0];
@@ -400,7 +431,7 @@ export class SyncService {
           await client.query(
             `
               insert into tasks (id, student_id, chapter_id, title, status, lamport, updated_by_device_id, deleted_at, created_at, updated_at)
-              values ($1, $2, $3, $4, $5, $6, $7, null, now(), now())
+              values ($1::uuid, $2::uuid, $3::uuid, $4::text, $5::text, $6::integer, $7::uuid, null, now(), now())
               on conflict (id) do update set
                 title = excluded.title,
                 status = excluded.status,
@@ -414,8 +445,8 @@ export class SyncService {
           await client.query(
             `
               update tasks
-              set status = $1, lamport = $2, updated_by_device_id = $3, updated_at = now()
-              where id = $4
+              set status = $1::text, lamport = $2::integer, updated_by_device_id = $3::uuid, updated_at = now()
+              where id = $4::uuid
             `,
             [status, op.lamport, op.deviceId, op.entityId]
           );
@@ -423,8 +454,8 @@ export class SyncService {
           await client.query(
             `
               update tasks
-              set title = $1, status = $2, lamport = $3, updated_by_device_id = $4, updated_at = now()
-              where id = $5
+              set title = $1::text, status = $2::text, lamport = $3::integer, updated_by_device_id = $4::uuid, updated_at = now()
+              where id = $5::uuid
             `,
             [title, status, op.lamport, op.deviceId, op.entityId]
           );
@@ -432,35 +463,40 @@ export class SyncService {
           await client.query(
             `
               update tasks
-              set deleted_at = now(), lamport = $1, updated_by_device_id = $2, updated_at = now()
-              where id = $3
+              set deleted_at = now(), lamport = $1::integer, updated_by_device_id = $2::uuid, updated_at = now()
+              where id = $3::uuid
             `,
             [op.lamport, op.deviceId, op.entityId]
           );
         }
 
         // Fetch task state to record in Change Feed
-        const taskRes = await client.query('select * from tasks where id = $1', [op.entityId]);
+        const taskRes = await client.query('select * from tasks where id = $1::uuid', [op.entityId]);
         const task = taskRes.rows[0];
         if (task) {
+          const taskChangeData = {
+            id: op.entityId,
+            student_id: op.studentId,
+            chapter_id: task.chapter_id,
+            title: task.title,
+            status: task.status,
+            lamport: task.lamport,
+            updated_by_device_id: task.updated_by_device_id,
+            deleted_at: task.deleted_at,
+            updated_at: timestamp
+          };
           await client.query(
             `
               insert into server_changes (student_id, entity_type, entity_id, change_type, data)
-              values ($1, 'task', $2, 'upsert', json_build_object(
-                'id', $2, 'student_id', $1, 'chapter_id', $3, 'title', $4, 'status', $5, 
-                'lamport', $6, 'updated_by_device_id', $7, 'deleted_at', $8, 'updated_at', now()
-              ))
+              values ($1::uuid, 'task', $2::uuid, 'upsert', $3::jsonb)
             `,
-            [
-              op.studentId, op.entityId, task.chapter_id, task.title, task.status, 
-              task.lamport, task.updated_by_device_id, task.deleted_at
-            ]
+            [op.studentId, op.entityId, JSON.stringify(taskChangeData)]
           );
         }
       } else {
         // Acknowledge operation but flag apply_status as ignored (lost conflict)
         await client.query(
-          "update operations set apply_status = 'ignored' where id = $1",
+          "update operations set apply_status = 'ignored' where id = $1::uuid",
           [op.id]
         );
       }
