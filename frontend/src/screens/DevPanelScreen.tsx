@@ -7,7 +7,8 @@ import {
   ScrollView,
   SafeAreaView,
   ActivityIndicator,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import type { SQLiteDatabase } from 'expo-sqlite';
@@ -23,6 +24,16 @@ type DevPanelScreenProps = {
   readonly deviceId: string;
   readonly deviceLabel: string;
 };
+
+const METADATA_KEY_LABELS: Record<string, string> = {
+  deviceId: 'Device ID',
+  deviceLabel: 'Device Label',
+  lamportCounter: 'Lamport Counter',
+  lastServerSequence: 'Last Server Sequence',
+  networkMode: 'Network State',
+  studentId: 'Student ID'
+};
+
 
 export const DevPanelScreen: React.FC<DevPanelScreenProps> = ({
   database,
@@ -230,12 +241,21 @@ export const DevPanelScreen: React.FC<DevPanelScreenProps> = ({
         {/* Database Metadata */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Local Metadata (SQLite)</Text>
-          {Object.entries(metadataRows).map(([key, val]) => (
-            <View key={key} style={styles.metaRow}>
-              <Text style={styles.metaKey}>{key}</Text>
-              <Text style={styles.metaVal}>{val}</Text>
-            </View>
-          ))}
+          {Object.entries(metadataRows).map(([key, val]) => {
+            const isId = key === 'deviceId' || key === 'studentId';
+            return (
+              <View key={key} style={styles.metaRow}>
+                <Text style={styles.metaKey}>{METADATA_KEY_LABELS[key] || key}</Text>
+                <Text
+                  style={[styles.metaVal, isId && styles.metaValId]}
+                  numberOfLines={isId ? 1 : undefined}
+                  ellipsizeMode={isId ? 'middle' : undefined}
+                >
+                  {val}
+                </Text>
+              </View>
+            );
+          })}
           <View style={styles.metaRow}>
             <Text style={styles.metaKey}>Student Coins</Text>
             <Text style={styles.metaVal}>{studentStats?.coins ?? 0}</Text>
@@ -459,7 +479,8 @@ const styles = StyleSheet.create({
   metaKey: {
     color: '#475569',
     fontSize: 13,
-    fontWeight: '600'
+    fontWeight: '600',
+    flexShrink: 0
   },
   metaRow: {
     alignItems: 'center',
@@ -467,12 +488,21 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8
+    paddingVertical: 8,
+    gap: 12
   },
   metaVal: {
     color: '#0f172a',
     fontSize: 13,
-    fontWeight: '700'
+    fontWeight: '700',
+    flexShrink: 1,
+    textAlign: 'right'
+  },
+  metaValId: {
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: 'normal'
   },
   networkStatusText: {
     fontSize: 12,
