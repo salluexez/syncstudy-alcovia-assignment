@@ -4,6 +4,7 @@ import { StyleSheet, Text, View, ActivityIndicator, TouchableOpacity, SafeAreaVi
 import { Feather } from '@expo/vector-icons';
 import { LocalStorageService, type LocalStorageContext } from './src/services/localStorageService';
 import { FocusScreen } from './src/screens/FocusScreen';
+import { SyllabusScreen } from './src/screens/SyllabusScreen';
 
 type TabType = 'focus' | 'syllabus' | 'dev';
 
@@ -54,18 +55,11 @@ export default function App() {
           />
         )}
         {activeTab === 'syllabus' && (
-          <View style={styles.placeholderContainer}>
-            <View style={styles.placeholderIconCircle}>
-              <Feather name="book-open" size={48} color="#94a3b8" />
-            </View>
-            <Text style={styles.placeholderTitle}>Syllabus Progress</Text>
-            <Text style={styles.placeholderDesc}>
-              Track subjects, chapters, and tasks with automatic rollup completion progress.
-            </Text>
-            <View style={styles.statusBadge}>
-              <Text style={styles.statusBadgeText}>Arriving in Phase 5</Text>
-            </View>
-          </View>
+          <SyllabusScreen
+            database={storageContext.database}
+            studentId={storageContext.studentId}
+            deviceId={storageContext.deviceId}
+          />
         )}
         {activeTab === 'dev' && (
           <View style={styles.placeholderContainer}>

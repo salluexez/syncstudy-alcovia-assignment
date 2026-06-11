@@ -14,7 +14,7 @@ export class LocalCurriculumRepository {
 
   public async listSubjects(studentId: string): Promise<Subject[]> {
     const rows = await this.database.getAllAsync<SubjectRow>(
-      'select * from local_subjects where student_id = ? order by title, id',
+      'select * from local_subjects where student_id = ? and deleted_at is null order by title, id',
       studentId
     );
 
@@ -23,7 +23,7 @@ export class LocalCurriculumRepository {
 
   public async listChapters(studentId: string): Promise<Chapter[]> {
     const rows = await this.database.getAllAsync<ChapterRow>(
-      'select * from local_chapters where student_id = ? order by title, id',
+      'select * from local_chapters where student_id = ? and deleted_at is null order by title, id',
       studentId
     );
 
@@ -32,7 +32,7 @@ export class LocalCurriculumRepository {
 
   public async listTasks(studentId: string): Promise<StudyTask[]> {
     const rows = await this.database.getAllAsync<TaskRow>(
-      'select * from local_tasks where student_id = ? order by title, id',
+      'select * from local_tasks where student_id = ? and deleted_at is null order by title, id',
       studentId
     );
 
