@@ -41,7 +41,16 @@ npm install
 Run the backend:
 
 ```bash
+npm --workspace backend run migrate
+npm --workspace backend run seed
 npm run dev:backend
+```
+
+Backend health checks:
+
+```bash
+curl -i http://localhost:4000/health
+curl -i http://localhost:4000/ready
 ```
 
 Run the frontend:

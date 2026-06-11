@@ -18,6 +18,12 @@ This is intentionally simple and explainable: all devices receive the same canon
 
 Focus rewards, streak updates, coin awards, and notifications will be guarded by backend uniqueness constraints. A successful focus session can be replayed during sync, but its reward event and notification event can be created only once.
 
+## Backend Foundation
+
+The backend uses PostgreSQL through `pg` and explicit repositories instead of an ORM. This keeps the SQL schema visible for review, makes idempotency constraints easy to audit, and avoids hiding sync-critical behavior behind framework abstractions.
+
+Migrations are plain SQL files executed by a small TypeScript migration runner. Phase 2 creates only schema and read-oriented foundation endpoints; the sync engine will be implemented later against these tables.
+
 ## Tradeoff
 
 The first implementation favors correctness and demo clarity over highly optimized sync. The backend will expose incremental server changes, but the design keeps the data model small enough to inspect through the Dev Panel.
