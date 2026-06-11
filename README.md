@@ -46,7 +46,7 @@
 
 ```mermaid
 graph TD
-    subgraph Mobile Client (Offline-First)
+    subgraph "Mobile Client (Offline-First)"
         SQLite[(SQLite Database)]
         UI[React Native View]
         SyncMgr[Client Sync Manager]
@@ -54,13 +54,13 @@ graph TD
         SyncMgr -->|Pull & Push Ops| SQLite
     end
 
-    subgraph Express Backend
+    subgraph "Express Backend"
         API[Sync Controller /api/sync]
         n8nSvc[n8n Webhook Service]
         NotifyController[Confirm & Sink Controllers]
     end
 
-    subgraph PostgreSQL Database
+    subgraph "PostgreSQL Database"
         PG[(Postgres DB)]
         OpsTab[operations table]
         ChangesTab[server_changes table]
@@ -71,7 +71,7 @@ graph TD
     API <-->|Transactional commit| PG
     n8nSvc -->|Trigger Webhook| WebhookNode[n8n Webhook Node]
     
-    subgraph n8n Workflow Automation
+    subgraph "n8n Workflow Automation"
         WebhookNode --> CheckNode[Dedupe Check: GET /notifications/confirm/check]
         CheckNode --> IfNode{Already Processed?}
         IfNode -->|No| MockSinkNode[HTTP POST /notifications/mock-sink]
