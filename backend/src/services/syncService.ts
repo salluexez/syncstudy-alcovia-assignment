@@ -1,5 +1,6 @@
 import { pool } from '../database/db.js';
 import type { UUID } from '../types/domain.js';
+import { n8nService } from './n8nService.js';
 
 export type SyncOperation = {
   readonly id: UUID;
@@ -40,6 +41,7 @@ export class SyncService {
     const ackedOperationIds: string[] = [];
     const duplicateOperationIds: string[] = [];
     const failedOperations: { id: string; error: string }[] = [];
+    const pendingWebhooks: string[] = [];
 
     try {
       await client.query('BEGIN');
@@ -82,7 +84,10 @@ export class SyncService {
           );
 
           // Apply state update
-          await this.applyOperation(client, op);
+          const webhookEventId = await this.applyOperation(client, op);
+          if (webhookEventId) {
+            pendingWebhooks.push(webhookEventId);
+          }
           ackedOperationIds.push(op.id);
 
         } catch (opError: any) {
@@ -139,6 +144,11 @@ export class SyncService {
 
       await client.query('COMMIT');
 
+      // Asynchronously trigger webhooks after COMMIT
+      for (const eventId of pendingWebhooks) {
+        void n8nService.triggerFocusSuccess(eventId);
+      }
+
       return {
         ackedOperationIds,
         changes,
@@ -160,7 +170,7 @@ export class SyncService {
     }
   }
 
-  private async applyOperation(client: any, op: SyncOperation): Promise<void> {
+  private async applyOperation(client: any, op: SyncOperation): Promise<string | null> {
     const timestamp = new Date().toISOString();
 
     if (op.entityType === 'focus_session') {
@@ -318,6 +328,30 @@ export class SyncService {
                 updatedStudent.current_streak, updatedStudent.last_focus_date
               ]
             );
+
+            const dedupeKey = `focus_session_success:${op.entityId}`;
+            const message = `Streak now ${newStreak} days! +${coinsAwarded} coins awarded.`;
+            const eventPayload = {
+              eventId: dedupeKey,
+              sessionId: op.entityId,
+              studentId: op.studentId,
+              streak: newStreak,
+              coins: coinsAwarded,
+              message
+            };
+
+            await client.query(
+              `
+                insert into processed_events (
+                  student_id, event_type, dedupe_key, source_entity_type, source_entity_id, status, payload, created_at
+                )
+                values ($1, 'focus_session_success', $2, 'focus_session', $3, 'pending', $4::jsonb, now())
+                on conflict (dedupe_key) do nothing
+              `,
+              [op.studentId, dedupeKey, op.entityId, JSON.stringify(eventPayload)]
+            );
+
+            return dedupeKey;
           }
         }
       } else {
@@ -431,6 +465,7 @@ export class SyncService {
         );
       }
     }
+    return null;
   }
 }
 

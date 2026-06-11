@@ -44,6 +44,7 @@ export const DevPanelScreen: React.FC<DevPanelScreenProps> = ({
   const [metadataRows, setMetadataRows] = useState<Record<string, string>>({});
   const [allOperations, setAllOperations] = useState<PendingOperation[]>([]);
   const [studentStats, setStudentStats] = useState<Student | null>(null);
+  const [mockNotifications, setMockNotifications] = useState<any[]>([]);
 
   const loadMetadata = async () => {
     try {
@@ -82,11 +83,39 @@ export const DevPanelScreen: React.FC<DevPanelScreenProps> = ({
     }
   };
 
+  const loadMockNotifications = async () => {
+    try {
+      const response = await fetch('http://localhost:4000/api/notifications/logs');
+      if (response.ok) {
+        const list = await response.json();
+        setMockNotifications(list);
+      }
+    } catch (err) {
+      console.error('Failed to load mock notifications:', err);
+    }
+  };
+
+  const handleClearLogs = async () => {
+    try {
+      await fetch('http://localhost:4000/api/notifications/clear-logs', { method: 'POST' });
+      void loadMockNotifications();
+    } catch (err) {
+      console.error('Failed to clear logs:', err);
+    }
+  };
+
   // Reload statistics on trigger or sync
   useEffect(() => {
     loadMetadata();
     loadOperations();
     loadStudentStats();
+    loadMockNotifications();
+
+    const interval = setInterval(() => {
+      void loadMockNotifications();
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, [database, isSyncing]);
 
   const handleResetDatabase = () => {
@@ -251,6 +280,35 @@ export const DevPanelScreen: React.FC<DevPanelScreenProps> = ({
                 ))}
               </View>
             </ScrollView>
+          )}
+        </View>
+
+        {/* Mock Notifications Log */}
+        <View style={styles.card}>
+          <View style={styles.opHeaderRow}>
+            <Text style={styles.cardTitle}>Mock Notifications Log (n8n)</Text>
+            <TouchableOpacity onPress={handleClearLogs} style={styles.clearBtn} activeOpacity={0.7}>
+              <Text style={styles.clearBtnText}>Clear Logs</Text>
+            </TouchableOpacity>
+          </View>
+
+          {mockNotifications.length === 0 ? (
+            <Text style={styles.emptyText}>No notifications dispatched yet.</Text>
+          ) : (
+            mockNotifications.slice().reverse().map((notif) => (
+              <View key={notif.id} style={styles.notifRow}>
+                <View style={styles.notifHeader}>
+                  <Text style={styles.notifEventId} numberOfLines={1}>{notif.eventId}</Text>
+                  <Text style={styles.notifTime}>
+                    {new Date(notif.receivedAt).toLocaleTimeString()}
+                  </Text>
+                </View>
+                <Text style={styles.notifMessage}>{notif.payload.message || JSON.stringify(notif.payload)}</Text>
+                <Text style={styles.notifDetails}>
+                  Coins: {notif.payload.coins} | Streak: {notif.payload.streak}
+                </Text>
+              </View>
+            ))
           )}
         </View>
 
@@ -511,6 +569,50 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     padding: 10
+  },
+  clearBtn: {
+    backgroundColor: '#fee2e2',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5
+  },
+  clearBtnText: {
+    color: '#ef4444',
+    fontSize: 11,
+    fontWeight: '700'
+  },
+  notifRow: {
+    borderBottomColor: '#f1f5f9',
+    borderBottomWidth: 1,
+    paddingVertical: 10
+  },
+  notifHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4
+  },
+  notifEventId: {
+    color: '#0f172a',
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    marginRight: 8
+  },
+  notifTime: {
+    color: '#94a3b8',
+    fontSize: 10
+  },
+  notifMessage: {
+    color: '#334155',
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 2
+  },
+  notifDetails: {
+    color: '#64748b',
+    fontSize: 10,
+    fontWeight: '500'
   }
 });
 
