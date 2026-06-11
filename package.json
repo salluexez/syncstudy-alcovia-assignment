@@ -1,0 +1,21 @@
+{
+  "name": "syncstudy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline-first study app assignment with operation-based sync, idempotent rewards, and n8n automation.",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev:frontend": "npm --workspace frontend run start",
+    "dev:backend": "npm --workspace backend run dev",
+    "build": "npm --workspace backend run build",
+    "typecheck": "npm --workspaces run typecheck",
+    "lint": "npm --workspaces run lint",
+    "test": "npm --workspaces run test"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
