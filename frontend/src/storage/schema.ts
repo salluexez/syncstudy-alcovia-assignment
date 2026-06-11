@@ -1,5 +1,5 @@
 export const LOCAL_DATABASE_NAME = 'syncstudy.db';
-export const LOCAL_SCHEMA_VERSION = 1;
+export const LOCAL_SCHEMA_VERSION = 2;
 
 export const localSchemaSql = `
 pragma foreign_keys = on;
@@ -104,6 +104,18 @@ create table if not exists local_notification_logs (
   created_at text not null
 );
 
+create table if not exists local_focus_effects (
+  id text primary key,
+  session_id text not null,
+  student_id text not null,
+  effect_type text not null check (
+    effect_type in ('reward_prepared', 'streak_update_prepared', 'focus_minutes_prepared')
+  ),
+  payload text not null,
+  created_at text not null,
+  unique (session_id, effect_type)
+);
+
 create table if not exists sync_state (
   key text primary key,
   value text not null
@@ -118,4 +130,5 @@ create index if not exists local_focus_sessions_student_idx on local_focus_sessi
 create index if not exists pending_operations_status_idx on pending_operations(sync_status, created_at);
 create index if not exists pending_operations_student_device_idx on pending_operations(student_id, device_id);
 create index if not exists local_notification_logs_event_idx on local_notification_logs(event_id);
+create index if not exists local_focus_effects_session_idx on local_focus_effects(session_id);
 `;

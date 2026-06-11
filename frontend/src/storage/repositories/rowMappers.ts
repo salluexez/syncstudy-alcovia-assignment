@@ -1,6 +1,7 @@
 import type {
   Chapter,
   FocusSession,
+  LocalFocusEffect,
   LocalNotificationLog,
   PendingOperation,
   Student,
@@ -163,4 +164,22 @@ export const mapNotificationLog = (row: NotificationLogRow): LocalNotificationLo
   message: row.message,
   sessionId: row.session_id,
   status: row.status
+});
+
+export type FocusEffectRow = {
+  id: string;
+  session_id: string;
+  student_id: string;
+  effect_type: 'reward_prepared' | 'streak_update_prepared' | 'focus_minutes_prepared';
+  payload: string;
+  created_at: string;
+};
+
+export const mapFocusEffect = (row: FocusEffectRow): LocalFocusEffect => ({
+  createdAt: row.created_at,
+  effectType: row.effect_type,
+  id: row.id,
+  payload: JSON.parse(row.payload) as Record<string, unknown>,
+  sessionId: row.session_id,
+  studentId: row.student_id
 });

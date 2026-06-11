@@ -10,6 +10,8 @@ export type PendingOperationStatus = 'pending' | 'syncing' | 'synced' | 'failed'
 
 export type NetworkMode = 'online' | 'offline';
 
+export type FocusEffectType = 'reward_prepared' | 'streak_update_prepared' | 'focus_minutes_prepared';
+
 export type Student = {
   readonly id: UUID;
   readonly name: string;
@@ -89,5 +91,14 @@ export type LocalNotificationLog = {
   readonly eventId: string;
   readonly status: string;
   readonly message: string;
+  readonly createdAt: string;
+};
+
+export type LocalFocusEffect = {
+  readonly id: UUID;
+  readonly sessionId: UUID;
+  readonly studentId: UUID;
+  readonly effectType: FocusEffectType;
+  readonly payload: Record<string, unknown>;
   readonly createdAt: string;
 };
