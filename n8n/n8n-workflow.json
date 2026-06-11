@@ -19,12 +19,12 @@
     {
       "parameters": {
         "url": "http://localhost:4000/api/notifications/confirm/check",
-        "sendQueryParameters": true,
+        "sendQuery": true,
         "queryParameters": {
           "parameters": [
             {
               "name": "eventId",
-              "value": "={{ $json.eventId }}"
+              "value": "={{ $json.body.eventId }}"
             }
           ]
         },
@@ -65,7 +65,7 @@
         "url": "http://localhost:4000/api/notifications/mock-sink",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"eventId\": \"{{ $node[\"Webhook Trigger\"].json.eventId }}\",\n  \"sessionId\": \"{{ $node[\"Webhook Trigger\"].json.sessionId }}\",\n  \"studentId\": \"{{ $node[\"Webhook Trigger\"].json.studentId }}\",\n  \"streak\": {{ $node[\"Webhook Trigger\"].json.streak }},\n  \"coins\": {{ $node[\"Webhook Trigger\"].json.coins }},\n  \"message\": \"{{ $node[\"Webhook Trigger\"].json.message }}\"\n}",
+        "jsonBody": "={\n  \"eventId\": \"{{ $node[\"Webhook Trigger\"].json.body.eventId }}\",\n  \"sessionId\": \"{{ $node[\"Webhook Trigger\"].json.body.sessionId }}\",\n  \"studentId\": \"{{ $node[\"Webhook Trigger\"].json.body.studentId }}\",\n  \"streak\": {{ $node[\"Webhook Trigger\"].json.body.streak }},\n  \"coins\": {{ $node[\"Webhook Trigger\"].json.body.coins }},\n  \"message\": \"{{ $node[\"Webhook Trigger\"].json.body.message }}\"\n}",
         "options": {}
       },
       "id": "mock-sink",
@@ -83,7 +83,7 @@
         "url": "http://localhost:4000/api/notifications/confirm",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"eventId\": \"{{ $node[\"Webhook Trigger\"].json.eventId }}\",\n  \"status\": \"processed\",\n  \"providerResponse\": {\n    \"delivered\": true\n  }\n}",
+        "jsonBody": "={\n  \"eventId\": \"{{ $node[\"Webhook Trigger\"].json.body.eventId }}\",\n  \"status\": \"processed\",\n  \"providerResponse\": {\n    \"delivered\": true\n  }\n}",
         "options": {}
       },
       "id": "confirm-sent",

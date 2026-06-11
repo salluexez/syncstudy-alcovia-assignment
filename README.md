@@ -139,8 +139,7 @@ When a successful focus session is synchronized, the backend awards rewards and 
 │   │   ├── screens/          # Focus Dashboard, Syllabus progress, Dev Observability Panel
 │   │   ├── storage/          # SQLite repos (Curriculum, Focus, Operations)
 │   │   └── sync/             # Push-pull sync client implementation
-├── n8n/                      # n8n Workflow JSON and configuration readme
-└── n8n-workflow.json         # Root exported workflow JSON
+└── n8n/                      # n8n Workflow JSON (n8n-workflow.json) and documentation
 ```
 
 ---
