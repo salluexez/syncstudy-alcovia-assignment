@@ -5,6 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { LocalStorageService, type LocalStorageContext } from './src/services/localStorageService';
 import { FocusScreen } from './src/screens/FocusScreen';
 import { SyllabusScreen } from './src/screens/SyllabusScreen';
+import { DevPanelScreen } from './src/screens/DevPanelScreen';
 
 type TabType = 'focus' | 'syllabus' | 'dev';
 
@@ -62,18 +63,12 @@ export default function App() {
           />
         )}
         {activeTab === 'dev' && (
-          <View style={styles.placeholderContainer}>
-            <View style={styles.placeholderIconCircle}>
-              <Feather name="sliders" size={48} color="#94a3b8" />
-            </View>
-            <Text style={styles.placeholderTitle}>Dev Observability Panel</Text>
-            <Text style={styles.placeholderDesc}>
-              Simulate network state, view database tables, pending sync operations queue, and local notification triggers.
-            </Text>
-            <View style={styles.statusBadge}>
-              <Text style={styles.statusBadgeText}>Arriving in Phase 9</Text>
-            </View>
-          </View>
+          <DevPanelScreen
+            database={storageContext.database}
+            studentId={storageContext.studentId}
+            deviceId={storageContext.deviceId}
+            deviceLabel={storageContext.deviceLabel}
+          />
         )}
       </View>
 
